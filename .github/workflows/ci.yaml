@@ -70,15 +70,9 @@ jobs:
       - name: SonarCloud Scan (Backend Priority)
         uses: SonarSource/sonarcloud-github-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: backend
-          # Les arguments peuvent aussi être mis dans un fichier sonar-project.properties
-          args: >
-            -Dsonar.projectKey=votre_project_key
-            -Dsonar.organization=votre_organisation
-            -Dsonar.qualitygate.wait=true
 
       - name: SonarCloud Quality Gate Check
         uses: sonarsource/sonarqube-quality-gate-action@master
