@@ -1,0 +1,79 @@
+name: Gym Management CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # JOB 1 : LINT
+  lint:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Lint Frontend
+        working-directory: frontend
+        run: npx eslint .
+
+      - name: Lint Backend
+        working-directory: backend
+        run: npx eslint .
+
+  # JOB 2 : BUILD
+  build:
+    runs-on: self-hosted
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Build Backend
+        working-directory: backend
+        run: |
+          npm install
+          npm run prisma:generate
+
+  # JOB 3 : TESTS
+  tests:  # ID corrigé (pas d'espaces ni parenthèses)
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Run backend tests
+        working-directory: backend
+        # Utilise npx pour s'assurer que Jest est trouvé sur Windows
+        run: npx jest --passWithNoTests
+
+  # JOB 4 : SONARCLOUD
+  sonar:
+    runs-on: self-hosted
+    needs: tests 
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Scan
+        working-directory: backend
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: npx sonarqube-scanner
