@@ -1,120 +1,87 @@
-name: CI Pipeline
+name: CI
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
   push:
-    branches:
-      - develop
-      - main
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
 
 jobs:
+  # JOB 1 : LINT
   lint:
-    name: Lint Frontend & Backend
     runs-on: self-hosted
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Install Dependencies (Frontend & Backend)
+        run: |
+          cd frontend && npm install
+          cd ../backend && npm install
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Lint Frontend
+        run: cd frontend && npx eslint .
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
+      - name: Lint Backend
+        run: cd backend && npx eslint .
 
-      - name: Lint frontend
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Lint backend
-        working-directory: backend
-        run: npm run lint
-
+  # JOB 2 : BUILD
   build:
-    name: Build Frontend & Backend
     runs-on: self-hosted
     needs: lint
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Build Backend
+        run: |
+          cd backend
+          npm install
+          # Note: Ajoutez un script build dans votre package.json backend si nécessaire
+          # Ici on génère au moins Prisma
+          npm run prisma:generate
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Build backend
-        working-directory: backend
-        run: npm run build
-
+  # JOB 3 : TESTS
   tests:
-    name: Backend Tests
     runs-on: self-hosted
     needs: build
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm install
+          npm test
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Run backend tests
-        working-directory: backend
-        run: npm test
-
-  sonarcloud:
-    name: SonarCloud Analysis (Backend)
+  # JOB 4 : SONARCLOUD
+  sonar:
     runs-on: self-hosted
     needs: tests
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Important pour l'analyse Sonar
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
+      - name: SonarCloud Scan (Backend Priority)
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: backend
+          # Les arguments peuvent aussi être mis dans un fichier sonar-project.properties
+          args: >
+            -Dsonar.projectKey=votre_project_key
+            -Dsonar.organization=votre_organisation
+            -Dsonar.qualitygate.wait=true
+
+      - name: SonarCloud Quality Gate Check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 10
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
