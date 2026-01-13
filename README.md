@@ -238,3 +238,65 @@ This project is licensed under the MIT License.
 ## Support
 
 For support or questions, please open an issue in the repository.
+
+# 📌 Git & Commit Guidelines
+
+## ✔ Branches
+
+- **Main branches:** `main`, `develop`  
+  - No direct commits allowed  
+  - Pull Request (PR) required for changes  
+  - CI checks must pass before merge  
+
+- **Feature branches:** `feature/<name>`  
+  - Develop features here  
+  - Merge into `develop` via PR  
+
+---
+
+## ✔ Commit Convention
+
+Use **Conventional Commits** format:  
+
+
+### Common types
+
+- `feat`: new feature  
+- `fix`: bug fix  
+- `chore`: maintenance / dependency updates  
+- `docs`: documentation  
+- `refactor`: code refactoring  
+- `test`: adding or updating tests  
+- `style`: formatting / code style  
+- `perf`: performance improvements  
+
+### Commit examples
+- `feat: add authentication`
+- `fix: fix Postgres connection`
+- `chore: update NestJS dependencies`
+
+---
+
+## ✔ Active Git Hooks
+
+- **`pre-commit`**: runs lint for front-end and back-end before committing  
+- **`commit-msg`**: checks that commit messages follow the convention  
+
+---
+
+## ✔ Pre-Push Hook – Collective Protection
+
+**Objective:** prevent broken code from being pushed to GitHub.
+
+- Runs **before pushing**  
+- Blocks the push if the project is unstable  
+- Possible checks:
+  - Run tests
+  - Build front-end and back-end
+
+**Key message:**  
+> “Just because it commits doesn’t mean it deserves to be shared.”
+
+
+
+![alt text](image-1.png)
