@@ -297,4 +297,3 @@ Use **Conventional Commits** format:
 **Key message:**  
 > “Just because it commits doesn’t mean it deserves to be shared.”
 
-

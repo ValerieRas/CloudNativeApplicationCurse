@@ -4,8 +4,8 @@
     "lint:front": "cd frontend && npm run lint",
     "lint:back": "cd backend && npm run lint",
     "lint:all": "npm run lint:front && npm run lint:back",
-    "build:front": "cd frontend && npx run build",
-    "build:back": "cd backend && npm run build",
+    "build:front": "cd frontend && npm run build",
+    "build:back": "cd backend && npm run prisma:generate",
     "build:all": "npm run build:front && npm run build:back"
   },
   "devDependencies": {
