@@ -300,3 +300,13 @@ Use **Conventional Commits** format:
 
 
 ![alt text](image-1.png)
+
+-- 
+
+## SONAR BADGES
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ValerieRas_CloudNativeApplicationCurse&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ValerieRas_CloudNativeApplicationCurse)
+
+
+[![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ValerieRas_CloudNativeApplicationCurse)](https://sonarcloud.io/summary/new_code?id=ValerieRas_CloudNativeApplicationCurse)
+
