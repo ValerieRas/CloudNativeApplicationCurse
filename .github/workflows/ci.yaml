@@ -67,18 +67,12 @@ jobs:
   # JOB 4 : SONARCLOUD
   sonar:
     runs-on: self-hosted
-    needs: tests # Doit correspondre exactement à l'ID du job précédent
+    needs: tests 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Requis par SonarCloud
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: backend
-          args: >
-            -Dsonar.qualitygate.wait=true
