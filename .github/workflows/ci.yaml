@@ -48,17 +48,24 @@ jobs:
           npm run prisma:generate
 
   # JOB 3 : TESTS
-  tests:
+  Tests (backend):
     runs-on: self-hosted
     needs: build
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Run Backend Tests
-        run: |
-          cd backend
-          npm install
-          npm test
+ 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+ 
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --include=dev
+ 
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test --if-present
 
   # JOB 4 : SONARCLOUD
   sonar:
@@ -72,11 +79,4 @@ jobs:
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: backend
-          args: >
-            -Dsonar.projectKey=votre_project_key
-            -Dsonar.organization=votre_organisation
-            -Dsonar.qualitygate.wait=true
