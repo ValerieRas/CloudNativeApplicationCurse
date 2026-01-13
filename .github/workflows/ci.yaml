@@ -1,4 +1,4 @@
-name: CI
+name: Gym Management CI
 
 on:
   push:
@@ -13,16 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install Dependencies (Frontend & Backend)
+      - name: Install Dependencies
         run: |
-          cd frontend && npm install
-          cd ../backend && npm install
+          cd frontend; npm install
+          cd ../backend; npm install
 
       - name: Lint Frontend
-        run: cd frontend && npx eslint .
+        run: |
+          cd frontend
+          npx eslint .
 
       - name: Lint Backend
-        run: cd backend && npx eslint .
+        run: |
+          cd backend
+          npx eslint .
 
   # JOB 2 : BUILD
   build:
@@ -41,8 +45,6 @@ jobs:
         run: |
           cd backend
           npm install
-          # Note: Ajoutez un script build dans votre package.json backend si nécessaire
-          # Ici on génère au moins Prisma
           npm run prisma:generate
 
   # JOB 3 : TESTS
@@ -65,17 +67,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Important pour l'analyse Sonar
+          fetch-depth: 0
 
-      - name: SonarCloud Scan (Backend Priority)
+      - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           projectBaseDir: backend
-
-      - name: SonarCloud Quality Gate Check
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        timeout-minutes: 10
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          args: >
+            -Dsonar.projectKey=votre_project_key
+            -Dsonar.organization=votre_organisation
+            -Dsonar.qualitygate.wait=true
