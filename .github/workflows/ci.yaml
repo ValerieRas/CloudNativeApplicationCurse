@@ -100,7 +100,6 @@ jobs:
           "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
 
       - name: Login to Docker Hub
-        shell: pwsh
         env:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
