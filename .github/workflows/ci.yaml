@@ -128,17 +128,17 @@ jobs:
       # 3) Tag + push GHCR (lowercase owner via tr)
       - name: Login GHCR
         run: |
-          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
+          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
           echo $env:GITHUB_TOKEN | docker login ghcr.io -u $OWNER_LC --password-stdin
  
       - name: Tag images
         run: |
-          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
-          docker tag backend-ci ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
-          docker tag frontend-ci ghcr.io/$OWNER_LC/cloudnative-frontend:$env:GITHUB_SHA
+          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
+          docker tag backend-ci ghcr.io/$OWNER_LC/cloudnative-backend:$env:${{ github.sha }}
+          docker tag frontend-ci ghcr.io/$OWNER_LC/cloudnative-frontend:$env:${{ github.sha }}
  
       - name: Push images
         run: |
-          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
-          docker push ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
-          docker push ghcr.io/$OWNER_LC/cloudnative-frontend:$env:GITHUB_SHA
+          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
+          docker push ghcr.io/$OWNER_LC/cloudnative-backend:$env:${{ github.sha }}
+          docker push ghcr.io/$OWNER_LC/cloudnative-frontend:$env:${{ github.sha }}
