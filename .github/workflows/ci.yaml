@@ -119,8 +119,15 @@ jobs:
 
       - name: Export Images to Tar
         run: |
-          docker save gym-backend -o backend-img.tar
-          docker save gym-frontend -o frontend-img.tar
+          # Get the image IDs directly from compose to avoid naming confusion
+          $backend_id = docker-compose images -q backend
+          $frontend_id = docker-compose images -q frontend
+
+          Write-Host "Saving Backend ID: $backend_id"
+          docker save $backend_id -o backend-img.tar
+
+          Write-Host "Saving Frontend ID: $frontend_id"
+          docker save $frontend_id -o frontend-img.tar
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -138,7 +145,7 @@ jobs:
           if (Test-Path .env) { Remove-Item .env }
           if (Test-Path "*.tar") { Remove-Item *.tar }
 
-  # JOB 6: Push to Docker Hub (Ubuntu Bash)
+# JOB 6: Push to Docker Hub (Ubuntu Bash)
   docker-push:
     runs-on: ubuntu-latest
     needs: docker-build-test
@@ -152,6 +159,8 @@ jobs:
         run: |
           docker load -i backend-img.tar
           docker load -i frontend-img.tar
+          # List images to verify names gym-backend and gym-frontend exist
+          docker images
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -164,6 +173,7 @@ jobs:
           REPO=${{ secrets.DOCKERHUB_USERNAME }}
           SHA=${{ github.sha }}
           
+          # These names now match the tags we set in Job 5
           docker tag gym-backend $REPO/cloudnative-backend:$SHA
           docker push $REPO/cloudnative-backend:$SHA
           
