@@ -104,10 +104,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          $tmp = [System.IO.Path]::GetTempFileName()
-          Set-Content -Path $tmp -Value $env:DOCKER_PASS -NoNewline
-          Get-Content $tmp | docker login -u $env:DOCKER_USER --password-stdin
-          Remove-Item $tmp
+          echo $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
 
 
       - name: Build and Start Containers
