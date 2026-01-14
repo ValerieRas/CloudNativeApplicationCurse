@@ -1,4 +1,4 @@
-name: Gym Management CI
+name: CloudNative CI
 
 on:
   push:
@@ -7,73 +7,57 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  # JOB 1 : LINT
-  lint:
+  docker-build-and-push:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Frontend Dependencies
-        working-directory: frontend
-        run: npm install
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install Backend Dependencies
-        working-directory: backend
-        run: npm install
+      # -------------------------------
+      # Build backend Docker image
+      # -------------------------------
+      - name: Build backend Docker image
+        run: docker build -t backend-ci ./backend
 
-      - name: Lint Frontend
-        working-directory: frontend
-        run: npx eslint .
-
-      - name: Lint Backend
-        working-directory: backend
-        run: npx eslint .
-
-  # JOB 2 : BUILD
-  build:
-    runs-on: self-hosted
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Build Frontend
-        working-directory: frontend
+      # Healthcheck backend container
+      - name: Run backend container (healthcheck)
         run: |
-          npm install
-          npm run build
+          docker run -d --name backend-test -p 3000:3000 backend-ci
+          sleep 5
+          docker ps | grep backend-test || (echo "Backend failed to start" && exit 1)
+          docker stop backend-test
+          docker rm backend-test
 
-      - name: Build Backend
-        working-directory: backend
+      # -------------------------------
+      # Build frontend Docker image
+      # -------------------------------
+      - name: Build frontend Docker image
+        run: docker build -t frontend-ci ./frontend
+
+      # Healthcheck frontend container
+      - name: Run frontend container (healthcheck)
         run: |
-          npm install
-          npm run prisma:generate
+          docker run -d --name frontend-test -p 8080:80 frontend-ci
+          sleep 5
+          docker ps | grep frontend-test || (echo "Frontend failed to start" && exit 1)
+          docker stop frontend-test
+          docker rm frontend-test
 
-  # JOB 3 : TESTS
-  tests:  # ID corrigé (pas d'espaces ni parenthèses)
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
+      # -------------------------------
+      # Login to GHCR
+      # -------------------------------
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm install
+      # -------------------------------
+      # Tag & push images
+      # -------------------------------
+      - name: Tag and push backend image
+        run: |
+          docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
+          docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
 
-      - name: Run backend tests
-        working-directory: backend
-        # Utilise npx pour s'assurer que Jest est trouvé sur Windows
-        run: npx jest --passWithNoTests
-
-  # JOB 4 : SONARCLOUD
-  sonar:
-    runs-on: self-hosted
-    needs: tests 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarQube Scan
-        working-directory: backend
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: npx sonarqube-scanner
+      - name: Tag and push frontend image
+        run: |
+          docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+          docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
