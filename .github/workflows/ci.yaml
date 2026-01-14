@@ -157,10 +157,16 @@ jobs:
 
       - name: Load Images
         run: |
-          docker load -i backend-img.tar
-          docker load -i frontend-img.tar
-          # List images to verify names gym-backend and gym-frontend exist
-          docker images
+          # Load images and extract the Image IDs from the output
+          BACKEND_ID=$(docker load -i backend-img.tar | grep -oE 'sha256:[0-9a-f]+' | cut -d: -f2 | head -n 1)
+          FRONTEND_ID=$(docker load -i frontend-img.tar | grep -oE 'sha256:[0-9a-f]+' | cut -d: -f2 | head -n 1)
+          
+          # Store them in the environment for the next step
+          echo "BACKEND_ID=$BACKEND_ID" >> $GITHUB_ENV
+          echo "FRONTEND_ID=$FRONTEND_ID" >> $GITHUB_ENV
+          
+          echo "Loaded Backend: $BACKEND_ID"
+          echo "Loaded Frontend: $FRONTEND_ID"
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -173,9 +179,10 @@ jobs:
           REPO=${{ secrets.DOCKERHUB_USERNAME }}
           SHA=${{ github.sha }}
           
-          # These names now match the tags we set in Job 5
-          docker tag gym-backend $REPO/cloudnative-backend:$SHA
+          # Tag and Push Backend
+          docker tag $BACKEND_ID $REPO/cloudnative-backend:$SHA
           docker push $REPO/cloudnative-backend:$SHA
           
-          docker tag gym-frontend $REPO/cloudnative-frontend:$SHA
+          # Tag and Push Frontend
+          docker tag $FRONTEND_ID $REPO/cloudnative-frontend:$SHA
           docker push $REPO/cloudnative-frontend:$SHA
