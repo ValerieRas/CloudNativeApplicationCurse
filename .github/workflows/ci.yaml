@@ -131,7 +131,7 @@ jobs:
       - name: Login Docker Hub
         shell: powershell
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
       # -------------------------------
       # Tag images
       # -------------------------------
