@@ -1,7 +1,3 @@
-permissions:
-  contents: read
-  packages: write
-
 name: CloudNative CI
 
 on:
@@ -9,6 +5,10 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
 # JOB 1 : LINT
