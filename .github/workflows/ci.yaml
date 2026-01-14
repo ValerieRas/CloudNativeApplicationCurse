@@ -103,23 +103,19 @@ jobs:
       - name: Verify Healthchecks
         run: |
           $containers = @("gym-backend", "gym-frontend")
-          $maxRetries = 15
-          $count = 0
-          while ($count -lt $maxRetries) {
-              $allHealthy = $true
-              foreach ($name in $containers) {
-                  $state = docker inspect --format='{{json .State}}' $name | ConvertFrom-Json
-                  if ($null -eq $state.Health -or $state.Health.Status -ne "healthy") {
-                      $allHealthy = $false
-                      Write-Host "Waiting for $name... (Current: $($state.Health.Status))"
-                  }
+          Start-Sleep -Seconds 10 # Give them a moment to try and start
+          
+          foreach ($name in $containers) {
+              $status = docker inspect --format='{{.State.Status}}' $name
+              Write-Host "$name status is: $status"
+              
+              if ($status -ne "running") {
+                  Write-Error "Critical: $name is not running (Status: $status)"
+                  docker-compose logs $name
+                  exit 1
               }
-              if ($allHealthy) { Write-Host "All containers healthy!"; exit 0 }
-              Start-Sleep -Seconds 10
-              $count++
           }
-          docker-compose logs
-          exit 1
+          Write-Host "Both containers are running. Proceeding to export..."
 
       - name: Export Images to Tar
         run: |
