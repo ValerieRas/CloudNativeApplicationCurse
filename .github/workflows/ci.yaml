@@ -128,9 +128,15 @@ jobs:
       # -------------------------------
       # Login to Docker Hub
       # -------------------------------
-      - name: Login Docker Hub
+      - name: Login to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          docker logout
+          $user = $env:DOCKERHUB_USERNAME
+          $token = $env:DOCKERHUB_TOKEN
+          echo $token | docker login -u $user --password-stdin
       # -------------------------------
       # Tag images
       # -------------------------------
@@ -147,4 +153,3 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
 
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
-
