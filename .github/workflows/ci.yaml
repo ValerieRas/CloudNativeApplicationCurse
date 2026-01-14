@@ -100,7 +100,11 @@ jobs:
           "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
 
       - name: Login to Docker Hub
-        run: echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+        env:
+          DOCKER_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          $env:DOCKER_TOKEN | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
 
       - name: Build and Start Containers
         run: docker-compose up -d --build
