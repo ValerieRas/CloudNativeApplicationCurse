@@ -6,6 +6,8 @@ services:
       - .env
     ports:
       - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data 
     networks:
       - gym-network
     healthcheck:
@@ -45,3 +47,7 @@ services:
 networks:
   gym-network:
     driver: bridge
+
+# This top-level key is required to define the named volume
+volumes:
+  postgres_data:
