@@ -102,14 +102,19 @@ jobs:
 
       - name: Verify Healthchecks
         run: |
-          $maxRetries = 12
+          $containers = @("gym-backend", "gym-frontend")
+          $maxRetries = 15
           $count = 0
           while ($count -lt $maxRetries) {
-              $status = docker inspect --format='{{json .State.Health.Status}}' gym-backend
-              Write-Host "Current Status: $status"
-              if ($status -eq '"healthy"') { 
-                Write-Host "Backend is Healthy!"; exit 0 
+              $allHealthy = $true
+              foreach ($name in $containers) {
+                  $state = docker inspect --format='{{json .State}}' $name | ConvertFrom-Json
+                  if ($null -eq $state.Health -or $state.Health.Status -ne "healthy") {
+                      $allHealthy = $false
+                      Write-Host "Waiting for $name... (Current: $($state.Health.Status))"
+                  }
               }
+              if ($allHealthy) { Write-Host "All containers healthy!"; exit 0 }
               Start-Sleep -Seconds 10
               $count++
           }
