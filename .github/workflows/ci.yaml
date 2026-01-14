@@ -132,7 +132,6 @@ jobs:
 
       - name: Windows Cleanup
         if: always()
-        shell: pwsh
         run: |
           docker-compose down
           if (Test-Path .env) { Remove-Item .env }
