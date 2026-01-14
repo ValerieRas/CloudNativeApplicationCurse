@@ -133,7 +133,6 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          docker logout
           $user = $env:DOCKERHUB_USERNAME
           $token = $env:DOCKERHUB_TOKEN
           echo $token | docker login -u $user --password-stdin
