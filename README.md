@@ -317,11 +317,13 @@ Use **Conventional Commits** format:
 
 ```mermaid
 flowchart TD
-    A[Push / PR (Main or Develop)] --> B(Lint Front & Back)
-    B --> C(Build Front & Back)
-    C --> D(Tests Backend)
-    D --> E(SonarCloud Analysis)
-    E --> F{Quality Gate}
-    F -->|Passed| G[Merge PR possible]
-    F -->|Failed| H[Block Merge]
+A[Push / PR] --> B{Branch is main <br/> or develop?}
+    B -- No --> C[Ignore / Skip]
+    B -- Yes --> D(Lint Front & Back)
+    D --> E(Build Front & Back)
+    E --> F(Tests Backend)
+    F --> G(SonarCloud Analysis)
+    G --> H{Quality Gate}
+    H -->|Passed| I[Merge PR possible]
+    H -->|Failed| J[Block Merge]
 
