@@ -17,13 +17,11 @@ jobs:
       # Build backend Docker image
       # -------------------------------
       - name: Build backend Docker image
-        shell: pwsh
         run: |
           docker build -t backend-ci ./backend
 
       # Healthcheck backend container
       - name: Run backend container (healthcheck)
-        shell: pwsh
         run: |
           docker run -d --name backend-test -p 3000:3000 backend-ci
           Start-Sleep -Seconds 5
@@ -39,13 +37,11 @@ jobs:
       # Build frontend Docker image
       # -------------------------------
       - name: Build frontend Docker image
-        shell: pwsh
         run: |
           docker build -t frontend-ci ./frontend
 
       # Healthcheck frontend container
       - name: Run frontend container (healthcheck)
-        shell: pwsh
         run: |
           docker run -d --name frontend-test -p 8080:80 frontend-ci
           Start-Sleep -Seconds 5
@@ -61,7 +57,6 @@ jobs:
       # Login to GitHub Container Registry
       # -------------------------------
       - name: Login to GitHub Container Registry
-        shell: pwsh
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
@@ -69,7 +64,6 @@ jobs:
       # Tag & push backend image
       # -------------------------------
       - name: Tag and push backend image
-        shell: pwsh
         run: |
           docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
           docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
@@ -78,7 +72,6 @@ jobs:
       # Tag & push frontend image
       # -------------------------------
       - name: Tag and push frontend image
-        shell: pwsh
         run: |
           docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
           docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
