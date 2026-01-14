@@ -129,7 +129,6 @@ jobs:
       # Login to GHCR (lowercase owner)
       # -------------------------------
       - name: Login GHCR
-        shell: pwsh
         run: |
           $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
           echo $env:GITHUB_TOKEN | docker login ghcr.io -u $OWNER_LC --password-stdin
@@ -138,7 +137,6 @@ jobs:
       # Tag images
       # -------------------------------
       - name: Tag images
-        shell: pwsh
         run: |
           $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
           docker tag backend-ci ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
@@ -148,7 +146,6 @@ jobs:
       # Push images
       # -------------------------------
       - name: Push images
-        shell: pwsh
         run: |
           $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
           docker push ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
