@@ -317,7 +317,7 @@ Use **Conventional Commits** format:
 
 ```mermaid
 flowchart TD
-    A[Push / PR] --> B(Lint Front & Back)
+    A[Push / PR (Main or Develop)] --> B(Lint Front & Back)
     B --> C(Build Front & Back)
     C --> D(Tests Backend)
     D --> E(SonarCloud Analysis)
