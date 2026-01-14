@@ -131,30 +131,23 @@ jobs:
       - name: Login Docker Hub
         shell: powershell
         run: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login `
-          -u "${{ secrets.DOCKERHUB_USERNAME }}" `
-          --password-stdin
-
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
       # -------------------------------
       # Tag images
       # -------------------------------
       - name: Tag images
         shell: powershell
         run: |
-          docker tag backend-ci `
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+          docker tag backend-ci ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
 
-          docker tag frontend-ci `
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+          docker tag frontend-ci ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
       # -------------------------------
       # Push images
       # -------------------------------
       - name: Push images
         shell: powershell
         run: |
-          docker push `
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
 
-          docker push `
-          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
 
