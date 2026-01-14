@@ -105,7 +105,7 @@ jobs:
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           # Use the environment variables directly to avoid pipe encoding issues
-          echo $env:DOCKER_PASS | Out-String -NoNewline | docker login -u $env:DOCKER_USER --password-stdin
+          echo $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
 
 
       - name: Build and Start Containers
