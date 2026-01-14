@@ -125,20 +125,36 @@ jobs:
           docker stop frontend-test
           docker rm frontend-test
 
-      # 3) Tag + push GHCR (lowercase owner via tr)
-      - name: Login GHCR
+      # -------------------------------
+      # Login to Docker Hub
+      # -------------------------------
+      - name: Login Docker Hub
+        shell: powershell
         run: |
-          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
-          echo $env:GITHUB_TOKEN | docker login ghcr.io -u $OWNER_LC --password-stdin
- 
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login `
+          -u "${{ secrets.DOCKERHUB_USERNAME }}" `
+          --password-stdin
+
+      # -------------------------------
+      # Tag images
+      # -------------------------------
       - name: Tag images
+        shell: powershell
         run: |
-          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
-          docker tag backend-ci ghcr.io/$OWNER_LC/cloudnative-backend:$env:${{ github.sha }}
-          docker tag frontend-ci ghcr.io/$OWNER_LC/cloudnative-frontend:$env:${{ github.sha }}
- 
+          docker tag backend-ci `
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+
+          docker tag frontend-ci `
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+      # -------------------------------
+      # Push images
+      # -------------------------------
       - name: Push images
+        shell: powershell
         run: |
-          $OWNER_LC = ${{ github.repository_owner }}.ToLower()
-          docker push ghcr.io/$OWNER_LC/cloudnative-backend:$env:${{ github.sha }}
-          docker push ghcr.io/$OWNER_LC/cloudnative-frontend:$env:${{ github.sha }}
+          docker push `
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+
+          docker push `
+          ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+
