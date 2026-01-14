@@ -1,0 +1,6 @@
+
+# Fun warning message
+echo "Ce n’est pas parce que ça commit que ça mérite d’être partagé."
+
+# Run tests and abort push if they fail
+npm run build:all || { echo "Build failed! Push aborted."; exit 1; }

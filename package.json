@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "prepare": "husky install",
+    "lint:front": "cd frontend && npm run lint",
+    "lint:back": "cd backend && npm run lint",
+    "lint:all": "npm run lint:front && npm run lint:back",
+    "build:front": "cd frontend && npm run build",
+    "build:back": "cd backend && npm run prisma:generate",
+    "build:all": "npm run build:front && npm run build:back"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.3.1",
+    "@commitlint/config-conventional": "^20.3.1",
+    "gitleaks": "^1.0.0"
+  }
+}

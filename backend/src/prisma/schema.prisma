@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  firstname   String
+  lastname    String
+  email       String   @unique
+  dateJoined  DateTime @default(now())
+  role        Role     @default(USER)
+  
+  subscription Subscription?
+  bookings     Booking[]
+  
+  @@map("users")
+}
+
+model Subscription {
+  id         String          @id @default(uuid())
+  userId     String          @unique
+  planType   SubscriptionPlan
+  startDate  DateTime
+  endDate    DateTime
+  autoRenew  Boolean         @default(true)
+  active     Boolean         @default(true)
+  
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("subscriptions")
+}
+
+model Class {
+  id          String   @id @default(uuid())
+  title       String
+  coach       String
+  datetime    DateTime
+  duration    Int      // duration in minutes
+  capacity    Int
+  isCancelled Boolean  @default(false)
+  
+  bookings    Booking[]
+  
+  @@map("classes")
+}
+
+model Booking {
+  id        String        @id @default(uuid())
+  userId    String
+  classId   String
+  status    BookingStatus @default(CONFIRMED)
+  createdAt DateTime      @default(now())
+  
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class     Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, classId])
+  @@map("bookings")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SubscriptionPlan {
+  STANDARD
+  PREMIUM
+  ETUDIANT
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+}
