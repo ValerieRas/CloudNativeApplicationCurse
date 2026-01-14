@@ -81,7 +81,7 @@ jobs:
 
 # JOB 5 : DOCKER BUILD, TEST & PUSH (Windows/PowerShell Version)
   docker-deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: sonar
     steps:
       - uses: actions/checkout@v4
