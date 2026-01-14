@@ -301,13 +301,9 @@ Use **Conventional Commits** format:
 
 ![alt text](image-1.png)
 
-<<<<<<< HEAD
 ## ✔ CI
 
 ![CI Status](https://img.shields.io/github/actions/workflow/status/valerieras/CloudNativeApplicationCurse/ci.yml?branch=develop)
-=======
--- 
->>>>>>> origin/main
 
 ## SONAR BADGES
 
@@ -316,7 +312,6 @@ Use **Conventional Commits** format:
 
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ValerieRas_CloudNativeApplicationCurse)](https://sonarcloud.io/summary/new_code?id=ValerieRas_CloudNativeApplicationCurse)
 
-<<<<<<< HEAD
 
 ## Schéma Pipeline
 
@@ -332,5 +327,3 @@ A[Push / PR] --> B{Branch is main <br/> or develop?}
     H -->|Passed| I[Merge PR possible]
     H -->|Failed| J[Block Merge]
 
-=======
->>>>>>> origin/main
