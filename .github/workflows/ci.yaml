@@ -79,18 +79,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
 
-# JOB 5 : DOCKER BUILD, TEST & PUSH (Windows/PowerShell Version)
-  docker-deploy:
-    runs-on: ubuntu-latest
+# JOB 5: Build and Test on Self-Hosted (Windows PowerShell)
+  docker-build-test:
+    runs-on: self-hosted
     needs: sonar
     steps:
       - uses: actions/checkout@v4
 
       - name: Create .env file
+        shell: pwsh
         run: |
-          # Create/Overwrite file with the first variable
-          "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
-          # Append the remaining variables
+          Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
           "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
           "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
           "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
@@ -99,60 +98,78 @@ jobs:
           "NODE_ENV=production" | Add-Content -Path .env
           "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
 
-      - name: Login to Docker Hub
-        env:
-          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          echo $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
-
-
       - name: Build and Start Containers
+        shell: pwsh
         run: docker-compose up -d --build
 
       - name: Verify Healthchecks
+        shell: pwsh
         run: |
-          Write-Host "Waiting for containers to be healthy..."
           $maxRetries = 12
           $count = 0
-          $healthy = $false
-
-          while (-not $healthy -and $count -lt $maxRetries) {
+          while ($count -lt $maxRetries) {
               $status = docker inspect --format='{{json .State.Health.Status}}' gym-backend
-              if ($status -eq '"healthy"') {
-                  $healthy = $true
-                  Write-Host "All systems are healthy!"
-              } else {
-                  Write-Host "Still waiting for gym-backend... (Status: $status)"
-                  Start-Sleep -Seconds 10
-                  $count++
+              Write-Host "Current Status: $status"
+              if ($status -eq '"healthy"') { 
+                Write-Host "Backend is Healthy!"; exit 0 
               }
+              Start-Sleep -Seconds 10
+              $count++
           }
+          docker-compose logs
+          exit 1
 
-          if (-not $healthy) {
-              Write-Error "Healthcheck failed after $maxRetries attempts!"
-              docker-compose logs
-              exit 1
-          }
-
-      - name: Tag and Push Images
+      - name: Export Images to Tar
+        shell: pwsh
         run: |
-          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
-          $sha = "${{ github.sha }}"
+          docker save gym-backend -o backend-img.tar
+          docker save gym-frontend -o frontend-img.tar
 
-          # Backend
-          docker tag gym-backend "${repo}/cloudnative-backend:$sha"
-          docker push "${repo}/cloudnative-backend:$sha"
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gym-images
+          path: |
+            backend-img.tar
+            frontend-img.tar
+          retention-days: 1
 
-          # Frontend
-          docker tag gym-frontend "${repo}/cloudnative-frontend:$sha"
-          docker push "${repo}/cloudnative-frontend:$sha"
-
-      - name: Cleanup
+      - name: Windows Cleanup
         if: always()
+        shell: pwsh
         run: |
           docker-compose down
           if (Test-Path .env) { Remove-Item .env }
-          # Optional: Remove local images to save disk space
-          docker rmi "${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}"
-          docker rmi "${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}"
+          if (Test-Path "*.tar") { Remove-Item *.tar }
+
+  # JOB 6: Push to Docker Hub (Ubuntu Bash)
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: docker-build-test
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gym-images
+
+      - name: Load Images
+        run: |
+          docker load -i backend-img.tar
+          docker load -i frontend-img.tar
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag and Push
+        run: |
+          REPO=${{ secrets.DOCKERHUB_USERNAME }}
+          SHA=${{ github.sha }}
+          
+          docker tag gym-backend $REPO/cloudnative-backend:$SHA
+          docker push $REPO/cloudnative-backend:$SHA
+          
+          docker tag gym-frontend $REPO/cloudnative-frontend:$SHA
+          docker push $REPO/cloudnative-frontend:$SHA
