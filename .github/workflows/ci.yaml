@@ -104,8 +104,10 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          # Use the environment variables directly to avoid pipe encoding issues
-          Write-Host -NoNewline $env:DOCKER_PASS | docker login -u $env:DOCKER_USER --password-stdin
+          $tmp = [System.IO.Path]::GetTempFileName()
+          Set-Content -Path $tmp -Value $env:DOCKER_PASS -NoNewline
+          Get-Content $tmp | docker login -u $env:DOCKER_USER --password-stdin
+          Remove-Item $tmp
 
 
       - name: Build and Start Containers
