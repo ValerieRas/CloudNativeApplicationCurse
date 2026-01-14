@@ -301,7 +301,9 @@ Use **Conventional Commits** format:
 
 ![alt text](image-1.png)
 
--- 
+## ✔ CI
+
+![CI Status](https://img.shields.io/github/actions/workflow/status/valerieras/CloudNativeApplicationCurse/ci.yml?branch=develop)
 
 ## SONAR BADGES
 
@@ -309,4 +311,17 @@ Use **Conventional Commits** format:
 
 
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ValerieRas_CloudNativeApplicationCurse)](https://sonarcloud.io/summary/new_code?id=ValerieRas_CloudNativeApplicationCurse)
+
+
+## Schéma Pipeline
+
+```mermaid
+flowchart TD
+    A[Push / PR] --> B(Lint Front & Back)
+    B --> C(Build Front & Back)
+    C --> D(Tests Backend)
+    D --> E(SonarCloud Analysis)
+    E --> F{Quality Gate}
+    F -->|Passed| G[Merge PR possible]
+    F -->|Failed| H[Block Merge]
 
