@@ -17,14 +17,21 @@ jobs:
       # Build backend Docker image
       # -------------------------------
       - name: Build backend Docker image
-        run: docker build -t backend-ci ./backend
+        shell: pwsh
+        run: |
+          docker build -t backend-ci ./backend
 
       # Healthcheck backend container
       - name: Run backend container (healthcheck)
+        shell: pwsh
         run: |
           docker run -d --name backend-test -p 3000:3000 backend-ci
-          sleep 5
-          docker ps | grep backend-test || (echo "Backend failed to start" && exit 1)
+          Start-Sleep -Seconds 5
+          $running = docker ps | Select-String "backend-test"
+          if (-not $running) {
+              Write-Host "Backend failed to start"
+              exit 1
+          }
           docker stop backend-test
           docker rm backend-test
 
@@ -32,32 +39,46 @@ jobs:
       # Build frontend Docker image
       # -------------------------------
       - name: Build frontend Docker image
-        run: docker build -t frontend-ci ./frontend
+        shell: pwsh
+        run: |
+          docker build -t frontend-ci ./frontend
 
       # Healthcheck frontend container
       - name: Run frontend container (healthcheck)
+        shell: pwsh
         run: |
           docker run -d --name frontend-test -p 8080:80 frontend-ci
-          sleep 5
-          docker ps | grep frontend-test || (echo "Frontend failed to start" && exit 1)
+          Start-Sleep -Seconds 5
+          $running = docker ps | Select-String "frontend-test"
+          if (-not $running) {
+              Write-Host "Frontend failed to start"
+              exit 1
+          }
           docker stop frontend-test
           docker rm frontend-test
 
       # -------------------------------
-      # Login to GHCR
+      # Login to GitHub Container Registry
       # -------------------------------
       - name: Login to GitHub Container Registry
-        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        shell: pwsh
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       # -------------------------------
-      # Tag & push images
+      # Tag & push backend image
       # -------------------------------
       - name: Tag and push backend image
+        shell: pwsh
         run: |
           docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
           docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
 
+      # -------------------------------
+      # Tag & push frontend image
+      # -------------------------------
       - name: Tag and push frontend image
+        shell: pwsh
         run: |
           docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
           docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
