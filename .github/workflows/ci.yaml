@@ -1,3 +1,7 @@
+permissions:
+  contents: read
+  packages: write
+
 name: CloudNative CI
 
 on:
@@ -122,24 +126,30 @@ jobs:
           docker rm frontend-test
 
       # -------------------------------
-      # Login to GitHub Container Registry
+      # Login to GHCR (lowercase owner)
       # -------------------------------
-      - name: Login to GitHub Container Registry
+      - name: Login GHCR
+        shell: pwsh
         run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
+          echo $env:GITHUB_TOKEN | docker login ghcr.io -u $OWNER_LC --password-stdin
 
       # -------------------------------
-      # Tag & push backend image
+      # Tag images
       # -------------------------------
-      - name: Tag and push backend image
+      - name: Tag images
+        shell: pwsh
         run: |
-          docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
-          docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
+          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
+          docker tag backend-ci ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
+          docker tag frontend-ci ghcr.io/$OWNER_LC/cloudnative-frontend:$env:GITHUB_SHA
 
       # -------------------------------
-      # Tag & push frontend image
+      # Push images
       # -------------------------------
-      - name: Tag and push frontend image
+      - name: Push images
+        shell: pwsh
         run: |
-          docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
-          docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+          $OWNER_LC = $env:GITHUB_REPOSITORY_OWNER.ToLower()
+          docker push ghcr.io/$OWNER_LC/cloudnative-backend:$env:GITHUB_SHA
+          docker push ghcr.io/$OWNER_LC/cloudnative-frontend:$env:GITHUB_SHA
