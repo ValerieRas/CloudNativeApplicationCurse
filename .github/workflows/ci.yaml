@@ -78,77 +78,58 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
-# JOB 5 : DOCKER
-  docker-build-and-push:
+# JOB 5 : DOCKER BUILD, TEST & PUSH
+  docker-deploy:
     runs-on: self-hosted
+    needs: sonar
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # -------------------------------
-      # Build backend Docker image
-      # -------------------------------
-      - name: Build backend Docker image
+      - name: Create .env file
         run: |
-          docker build -t backend-ci ./backend
+          touch .env
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+          echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
+          echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "NODE_ENV=production" >> .env
+          echo "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" >> .env
 
-      # Healthcheck backend container
-      - name: Run backend container (healthcheck)
-        run: |
-          docker run -d --name backend-test -p 3000:3000 backend-ci
-          Start-Sleep -Seconds 5
-          $running = docker ps | Select-String "backend-test"
-          if (-not $running) {
-              Write-Host "Backend failed to start"
-              exit 1
-          }
-          docker stop backend-test
-          docker rm backend-test
-
-      # -------------------------------
-      # Build frontend Docker image
-      # -------------------------------
-      - name: Build frontend Docker image
-        run: |
-          docker build -t frontend-ci ./frontend
-
-      # Healthcheck frontend container
-      - name: Run frontend container (healthcheck)
-        run: |
-          docker run -d --name frontend-test -p 8080:80 frontend-ci
-          Start-Sleep -Seconds 5
-          $running = docker ps | Select-String "frontend-test"
-          if (-not $running) {
-              Write-Host "Frontend failed to start"
-              exit 1
-          }
-          docker stop frontend-test
-          docker rm frontend-test
-
-      # -------------------------------
-      # Login to Docker Hub
-      # -------------------------------
       - name: Login to Docker Hub
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          $user = $env:DOCKERHUB_USERNAME
-          $token = $env:DOCKERHUB_TOKEN
-          echo $token | docker login -u $user --password-stdin
-      # -------------------------------
-      # Tag images
-      # -------------------------------
-      - name: Tag images
-        run: |
-          docker tag backend-ci ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
-          docker tag frontend-ci ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
-      # -------------------------------
-      # Push images
-      # -------------------------------
-      - name: Push images
+      - name: Build and Start Containers
+        run: docker-compose up -d --build
+
+      - name: Verify Healthchecks
         run: |
+          echo "Waiting for containers to be healthy..."
+          MAX_RETRIES=10
+          COUNT=0
+          while [ "$(docker inspect --format='{{json .State.Health.Status}}' gym-backend)" != "\"healthy\"" ]; do
+            if [ $COUNT -eq $MAX_RETRIES ]; then
+              echo "Healthcheck failed!"
+              docker-compose logs
+              exit 1
+            fi
+            sleep 10
+            COUNT=$((COUNT+1))
+          done
+
+      - name: Tag and Push Backend
+        run: |
+          docker tag gym-backend ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
 
+      - name: Tag and Push Frontend
+        run: |
+          docker tag gym-frontend ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose down
+          rm .env # Remove the secret file from the runner after use
