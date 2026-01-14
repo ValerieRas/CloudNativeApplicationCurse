@@ -78,7 +78,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
-# JOB 5 : DOCKER BUILD, TEST & PUSH
+        
+# JOB 5 : DOCKER BUILD, TEST & PUSH (Windows/PowerShell Version)
   docker-deploy:
     runs-on: self-hosted
     needs: sonar
@@ -87,15 +88,16 @@ jobs:
 
       - name: Create .env file
         run: |
-          touch .env
-          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-          echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
-          echo "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" >> .env
-          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
-          echo "NODE_ENV=production" >> .env
-          echo "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" >> .env
+          # Create/Overwrite file with the first variable
+          "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
+          # Append the remaining variables
+          "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
+          "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
+          "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
+          "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" | Add-Content -Path .env
+          "DATABASE_URL=${{ secrets.DATABASE_URL }}" | Add-Content -Path .env
+          "NODE_ENV=production" | Add-Content -Path .env
+          "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
 
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
@@ -105,31 +107,47 @@ jobs:
 
       - name: Verify Healthchecks
         run: |
-          echo "Waiting for containers to be healthy..."
-          MAX_RETRIES=10
-          COUNT=0
-          while [ "$(docker inspect --format='{{json .State.Health.Status}}' gym-backend)" != "\"healthy\"" ]; do
-            if [ $COUNT -eq $MAX_RETRIES ]; then
-              echo "Healthcheck failed!"
+          Write-Host "Waiting for containers to be healthy..."
+          $maxRetries = 12
+          $count = 0
+          $healthy = $false
+
+          while (-not $healthy -and $count -lt $maxRetries) {
+              $status = docker inspect --format='{{json .State.Health.Status}}' gym-backend
+              if ($status -eq '"healthy"') {
+                  $healthy = $true
+                  Write-Host "All systems are healthy!"
+              } else {
+                  Write-Host "Still waiting for gym-backend... (Status: $status)"
+                  Start-Sleep -Seconds 10
+                  $count++
+              }
+          }
+
+          if (-not $healthy) {
+              Write-Error "Healthcheck failed after $maxRetries attempts!"
               docker-compose logs
               exit 1
-            fi
-            sleep 10
-            COUNT=$((COUNT+1))
-          done
+          }
 
-      - name: Tag and Push Backend
+      - name: Tag and Push Images
         run: |
-          docker tag gym-backend ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}
+          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
+          $sha = "${{ github.sha }}"
 
-      - name: Tag and Push Frontend
-        run: |
-          docker tag gym-frontend ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}
+          # Backend
+          docker tag gym-backend "${repo}/cloudnative-backend:$sha"
+          docker push "${repo}/cloudnative-backend:$sha"
+
+          # Frontend
+          docker tag gym-frontend "${repo}/cloudnative-frontend:$sha"
+          docker push "${repo}/cloudnative-frontend:$sha"
 
       - name: Cleanup
         if: always()
         run: |
           docker-compose down
-          rm .env # Remove the secret file from the runner after use
+          if (Test-Path .env) { Remove-Item .env }
+          # Optional: Remove local images to save disk space
+          docker rmi "${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-backend:${{ github.sha }}"
+          docker rmi "${{ secrets.DOCKERHUB_USERNAME }}/cloudnative-frontend:${{ github.sha }}"
