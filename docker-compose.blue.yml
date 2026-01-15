@@ -1,0 +1,26 @@
+
+
+services:
+  app-back-blue:
+    image: cloudnative-backend:blue
+    container_name: app-back-blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    ports:
+      - "${BACKEND_PORT}:3000"
+    depends_on:
+      - postgres
+
+  app-front-blue:
+    image: cloudnative-frontend:blue
+    container_name: app-front-blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    ports:
+      - "${FRONTEND_PORT}:80"
+    depends_on:
+      - app-back-blue

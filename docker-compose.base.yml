@@ -1,0 +1,32 @@
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: gym-postgres
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bluegreen-net
+    ports:
+      - "${POSTGRES_PORT}:5432"
+
+  reverse-proxy:
+    build: ./nginx
+    container_name: reverse-proxy
+    networks:
+      - bluegreen-net
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  bluegreen-net:
+    external: true
