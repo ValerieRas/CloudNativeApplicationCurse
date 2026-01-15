@@ -187,14 +187,14 @@ jobs:
           docker tag $FRONTEND_ID $REPO/cloudnative-frontend:$SHA
           docker push $REPO/cloudnative-frontend:$SHA
 
-# JOB 7 : DEPLOY (Final Stage)
+# JOB 7 : DEPLOY
   deploy:
     runs-on: self-hosted
-    needs: docker-push  # Ensures images are available on Docker Hub first
+    needs: docker-push
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create .env file for Production
+      - name: Create .env file
         run: |
           Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
           "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
@@ -205,25 +205,10 @@ jobs:
           "NODE_ENV=production" | Add-Content -Path .env
           "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
 
-      - name: Stop current containers
-        run: docker-compose down
-
-      - name: Pull latest images from Docker Hub
+      - name: Run Deployment Script
         run: |
-          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
-          $sha = "${{ github.sha }}"
-          
-          docker pull "${repo}/cloudnative-backend:$sha"
-          docker pull "${repo}/cloudnative-frontend:$sha"
+          # We call the script and pass the necessary arguments
+          ./scripts/deploy.ps1 -DockerUser "${{ secrets.DOCKERHUB_USERNAME }}" -GitSha "${{ github.sha }}"
 
-      - name: Tag pulled images for Compose
-        run: |
-          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
-          $sha = "${{ github.sha }}"
-          
-          # We re-tag the pulled SHA image so docker-compose knows to use it
-          docker tag "${repo}/cloudnative-backend:$sha" gym-backend:latest
-          docker tag "${repo}/cloudnative-frontend:$sha" gym-frontend:latest
-
-      - name: Restart production environment
-        run: docker-compose up -d
+      - name: Verify Final Status
+        run: docker ps
