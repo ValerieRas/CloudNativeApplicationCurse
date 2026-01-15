@@ -1,0 +1,20 @@
+
+
+services:
+  app-back-blue:
+    image: cloudnative-backend:blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    depends_on:
+      - postgres
+
+  app-front-blue:
+    image: cloudnative-frontend:blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    depends_on:
+      - app-back-blue

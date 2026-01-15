@@ -1,4 +1,3 @@
-# scripts/deploy.ps1
 param (
     [string]$DockerUser,
     [string]$GitSha
@@ -6,24 +5,65 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "--- Starting Idempotent Deployment for SHA: $GitSha ---"
+# 1. Détecter l'état actuel
+$ActiveConfPath = "./nginx/conf.d/active.conf"
+$ActiveContent = Get-Content $ActiveConfPath
 
-# 1. Stop containers without removing volumes (Preserves Postgres data)
-Write-Host "Stopping current containers..."
-docker-compose down
+if ($ActiveContent -match "backend_blue") {
+    $CurrentColor = "blue"
+    $NextColor = "green"
+} else {
+    $CurrentColor = "green"
+    $NextColor = "blue"
+}
 
-# 2. Pull the specific images from Docker Hub
-Write-Host "Pulling latest images..."
+Write-Host "Production actuelle : $CurrentColor. Déploiement vers : $NextColor..."
+
+# 2. Préparation et démarrage de la nouvelle couleur
 docker pull "${DockerUser}/cloudnative-backend:$GitSha"
 docker pull "${DockerUser}/cloudnative-frontend:$GitSha"
+docker tag "${DockerUser}/cloudnative-backend:$GitSha" "cloudnative-backend:$NextColor"
+docker tag "${DockerUser}/cloudnative-frontend:$GitSha" "cloudnative-frontend:$NextColor"
 
-# 3. Re-tag to 'latest' so docker-compose uses them without modifying the YAML
-Write-Host "Updating local tags..."
-docker tag "${DockerUser}/cloudnative-backend:$GitSha" gym-backend:latest
-docker tag "${DockerUser}/cloudnative-frontend:$GitSha" gym-frontend:latest
+# On lance la nouvelle couleur sans couper l'ancienne
+docker-compose -f docker-compose.base.yml -f "docker-compose.$NextColor.yml" up -d
 
-# 4. Restart the environment
-Write-Host "Restarting containers..."
-docker-compose up -d
+# 3. Vérification si les nouveaux conteneurs tournent réellement
+Write-Host "Vérification du statut des conteneurs $NextColor..."
+Start-Sleep -Seconds 5 # Laisse un court délai pour le démarrage
 
-Write-Host "--- Deployment Successful ---"
+$NewContainers = @("app-back-$NextColor", "app-front-$NextColor")
+$DeploymentFailed = $false
+
+foreach ($Name in $NewContainers) {
+    $Status = docker inspect --format='{{.State.Status}}' $Name
+    Write-Host "Conteneur $Name est dans l'état : $Status"
+    if ($Status -ne "running") {
+        $DeploymentFailed = $true
+    }
+}
+
+# 4. Bascule ou Rollback
+if ($DeploymentFailed -eq $false) {
+    Write-Host "Succès : La nouvelle couleur est opérationnelle. Bascule du trafic..."
+    
+    # Mise à jour de la config Nginx
+    $NewConfig = "set `$active_backend backend_$NextColor;`nset `$active_frontend frontend_$NextColor;"
+    $NewConfig | Out-File -FilePath $ActiveConfPath -Encoding utf8
+    
+    # Rechargement à chaud
+    docker exec reverse-proxy nginx -s reload
+    Write-Host "--- Déploiement $NextColor terminé avec succès ---"
+} 
+else {
+    Write-Warning "CRITIQUE : Les conteneurs $NextColor n'ont pas démarré. Annulation de la bascule."
+    
+    # Ici, le rollback est passif : on ne touche pas à active.conf
+    # L'ancien trafic reste sur $CurrentColor car Nginx n'a pas été rechargé.
+    
+    # Optionnel : On nettoie la version défaillante
+    docker-compose -f docker-compose.base.yml -f "docker-compose.$NextColor.yml" stop
+    
+    Write-Host "Le système est resté sur la version stable ($CurrentColor)."
+    exit 1 # Échec du pipeline pour alerter l'équipe
+}

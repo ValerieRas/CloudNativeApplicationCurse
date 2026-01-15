@@ -1,0 +1,31 @@
+
+services:
+  postgres:
+    image: postgres:16
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bluegreen-net
+    ports:
+      - "${POSTGRES_PORT}:5432"
+
+  reverse-proxy:
+    build: ./nginx
+    networks:
+      - bluegreen-net
+    ports:
+      - "80:80"
+    volumes:
+      - C:/cloudnative/active_color.env:/etc/nginx/active_color.env
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  bluegreen-net:
+    external: true
