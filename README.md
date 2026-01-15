@@ -313,54 +313,174 @@ Use **Conventional Commits** format:
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=ValerieRas_CloudNativeApplicationCurse)](https://sonarcloud.io/summary/new_code?id=ValerieRas_CloudNativeApplicationCurse)
 
 
-## Schéma Pipeline
+# 🚀 CI 
 
-```mermaid
-flowchart TD
-A[Push / PR] --> B{Branch is main <br/> or develop?}
-    B -- No --> C[Ignore / Skip]
-    B -- Yes --> D(Lint Front & Back)
-    D --> E(Build Front & Back)
-    E --> F(Tests Backend)
-    F --> G(SonarCloud Analysis)
-    G --> H{Quality Gate}
-    H -->|Passed| I[Merge PR possible]
-    H -->|Failed| J[Block Merge]
+## 📌 Présentation générale
 
-# CloudNative Gym Management
+**CloudNative CI** est une pipeline CI/CD complète basée sur **GitHub Actions**, conçue pour garantir :
 
-## ✔ Lancer l’environnement via Docker Compose
+- la qualité du code (lint, tests, analyse statique),
+- la construction d’images Docker versionnées,
+- un déploiement automatique fiable,
+- la persistance des données PostgreSQL,
+- une approche **cloud-native**, reproductible et traçable.
 
-Pour démarrer la stack complète (frontend, backend, base de données) :
+Le workflow couvre **l’intégralité du cycle de vie applicatif**, du commit jusqu’au déploiement en production.
 
+---
+
+## 🧩 Architecture globale du workflow
+
+```text
+Commit / Pull Request
+        │
+        ▼
+┌─────────────┐
+│   LINT      │  (Frontend + Backend)
+└─────────────┘
+        │
+        ▼
+┌─────────────┐
+│   BUILD     │  (Build frontend + backend)
+└─────────────┘
+        │
+        ▼
+┌─────────────┐
+│   TESTS     │  (Jest backend)
+└─────────────┘
+        │
+        ▼
+┌─────────────┐
+│ SONARCLOUD  │  (Qualité & sécurité)
+└─────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ DOCKER BUILD & TEST   │  (Self-hosted Windows)
+│ - Build images        │
+│ - Run containers     │
+│ - Healthcheck        │
+│ - Export images      │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ DOCKER PUSH           │  (Ubuntu)
+│ - Load images         │
+│ - Tag avec SHA Git    │
+│ - Push Docker Hub     │
+└───────────────────────┘
+        │
+        ▼
+┌───────────────────────┐
+│ DEPLOY                │  (Self-hosted)
+│ - Pull images         │
+│ - Restart services    │
+│ - Volumes persistants │
+└───────────────────────┘
+
+## ⚙️ Conditions d’exécution
+
+### 🔹 Branches concernées
+
+Le workflow **CloudNative CI** s’exécute automatiquement sur les branches suivantes :
+
+- `main`
+- `develop`
+
+Pour les événements :
+- `push`
+- `pull_request`
+
+---
+
+### 🔹 Environnements requis
+
+#### 🖥️ Runners
+
+- **Self-hosted runner (Windows)**  
+  Utilisé pour les jobs critiques (build Docker, tests d’intégration, déploiement).
+  - Docker
+  - Docker Compose
+  - Node.js
+  - PowerShell
+  - Accès au daemon Docker local
+
+- **GitHub-hosted runner (Ubuntu)**  
+  Utilisé exclusivement pour le push des images vers Docker Hub.
+  - Docker CLI préinstallé
+
+---
+
+### 🔹 Secrets GitHub requis
+
+Les secrets suivants doivent être configurés dans le dépôt GitHub :
+
+| Secret | Description |
+|------|------------|
+| `DOCKERHUB_USERNAME` | Nom d’utilisateur Docker Hub |
+| `DOCKERHUB_TOKEN` | Token d’authentification Docker Hub |
+| `SONAR_TOKEN` | Token SonarCloud |
+| `POSTGRES_USER` | Utilisateur PostgreSQL |
+| `POSTGRES_PASSWORD` | Mot de passe PostgreSQL |
+| `POSTGRES_DB` | Nom de la base de données |
+| `POSTGRES_PORT` | Port PostgreSQL |
+| `DATABASE_URL` | URL de connexion à la base |
+| `BACKEND_PORT` | Port exposé du backend |
+| `FRONTEND_PORT` | Port exposé du frontend |
+
+---
+
+## 🔁 Documentation du déploiement automatique
+
+### 🧠 Principe général
+
+Le déploiement est **entièrement automatisé** via GitHub Actions et repose sur les principes suivants :
+
+- images Docker **immuables**
+- versionnement strict par **SHA Git**
+- séparation build / push / deploy
+- orchestration via **Docker Compose**
+- persistance des données par volumes Docker
+
+---
+
+### 📦 Étapes détaillées du déploiement
+
+#### 1️⃣ Validation et qualité du code
+
+À chaque `push` ou `pull_request` :
+
+- lint du frontend et du backend
+- build applicatif
+- exécution des tests backend
+- analyse statique SonarCloud
+
+Le pipeline est **bloquant** : toute erreur stoppe l’exécution.
+
+---
+
+#### 2️⃣ Build et tests Docker
+
+Sur le runner self-hosted :
+
+- construction des images Docker
+- démarrage des services :
+  ```bash
+  docker-compose up -d --build
+- vérification que les conteneurs sont en état running
+- arrêt propre en fin de job :
 ```bash
-docker compose up --build
+   docker-compose down
 
+## 📦 Publication des images Docker
 
-✔ URLs accessibles
+Les images Docker générées par la pipeline **CloudNative CI** sont publiées sur Docker Hub aux emplacements suivants :
 
-Frontend : http://localhost:8080
+- **Backend**
+  - https://hub.docker.com/r/<DOCKERHUB_USERNAME>/cloudnative-backend
 
-Backend : http://localhost:3000
+- **Frontend**
+  - https://hub.docker.com/r/<DOCKERHUB_USERNAME>/cloudnative-frontend
 
-Postgres : local uniquement, accessible via localhost:5432
-
-✔ Lien vers vos images Docker
-
-Backend : ghcr.io/<username>/cloudnative-backend:latest
-
-Frontend : ghcr.io/<username>/cloudnative-frontend:latest
-
-Remplace <username> par votre nom d’utilisateur GitHub.
-
-✔ Conditions d’exécution du pipeline CI
-
-Nécessite un runner local (Windows, Linux ou macOS selon configuration)
-
-Secrets requis :
-
-DOCKER_USERNAME
-
-DOCKER_PASSWORD
-
-SONAR_TOKEN
+Chaque image est taguée avec le **SHA Git** correspondant au commit ayant déclenché le déploiement.
