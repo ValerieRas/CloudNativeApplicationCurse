@@ -186,3 +186,49 @@ jobs:
           # Tag and Push Frontend
           docker tag $FRONTEND_ID $REPO/cloudnative-frontend:$SHA
           docker push $REPO/cloudnative-frontend:$SHA
+
+# JOB 7 : DEPLOY (Final Stage)
+  deploy:
+    runs-on: self-hosted
+    needs: docker-push  # Ensures images are available on Docker Hub first
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env file for Production
+        shell: pwsh
+        run: |
+          Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
+          "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
+          "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
+          "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
+          "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" | Add-Content -Path .env
+          "DATABASE_URL=${{ secrets.DATABASE_URL }}" | Add-Content -Path .env
+          "NODE_ENV=production" | Add-Content -Path .env
+          "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
+
+      - name: Stop current containers
+        shell: pwsh
+        run: docker-compose down
+
+      - name: Pull latest images from Docker Hub
+        shell: pwsh
+        run: |
+          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
+          $sha = "${{ github.sha }}"
+          
+          docker pull "${repo}/cloudnative-backend:$sha"
+          docker pull "${repo}/cloudnative-frontend:$sha"
+
+      - name: Tag pulled images for Compose
+        shell: pwsh
+        run: |
+          $repo = "${{ secrets.DOCKERHUB_USERNAME }}"
+          $sha = "${{ github.sha }}"
+          
+          # We re-tag the pulled SHA image so docker-compose knows to use it
+          docker tag "${repo}/cloudnative-backend:$sha" gym-backend:latest
+          docker tag "${repo}/cloudnative-frontend:$sha" gym-frontend:latest
+
+      - name: Restart production environment
+        shell: pwsh
+        run: docker-compose up -d
