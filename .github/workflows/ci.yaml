@@ -1,4 +1,4 @@
-name: Gym Management CI
+name: CloudNative CI
 
 on:
   push:
@@ -6,8 +6,12 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  # JOB 1 : LINT
+# JOB 1 : LINT
   lint:
     runs-on: self-hosted
     steps:
@@ -28,8 +32,7 @@ jobs:
       - name: Lint Backend
         working-directory: backend
         run: npx eslint .
-
-  # JOB 2 : BUILD
+# JOB 2 : BUILD
   build:
     runs-on: self-hosted
     needs: lint
@@ -47,8 +50,7 @@ jobs:
         run: |
           npm install
           npm run prisma:generate
-
-  # JOB 3 : TESTS
+ # JOB 3 : TESTS
   tests:  # ID corrigé (pas d'espaces ni parenthèses)
     runs-on: self-hosted
     needs: build
@@ -63,8 +65,7 @@ jobs:
         working-directory: backend
         # Utilise npx pour s'assurer que Jest est trouvé sur Windows
         run: npx jest --passWithNoTests
-
-  # JOB 4 : SONARCLOUD
+# JOB 4 : SONARCLOUD
   sonar:
     runs-on: self-hosted
     needs: tests 
@@ -77,3 +78,111 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
+
+# JOB 5: Build and Test on Self-Hosted (Windows PowerShell)
+  docker-build-test:
+    runs-on: self-hosted
+    needs: sonar
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
+          "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
+          "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
+          "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
+          "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" | Add-Content -Path .env
+          "DATABASE_URL=${{ secrets.DATABASE_URL }}" | Add-Content -Path .env
+          "NODE_ENV=production" | Add-Content -Path .env
+          "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
+
+      - name: Build and Start Containers
+        run: docker-compose up -d --build
+
+      - name: Verify Healthchecks
+        run: |
+          $containers = @("gym-backend", "gym-frontend")
+          Start-Sleep -Seconds 10 # Give them a moment to try and start
+          
+          foreach ($name in $containers) {
+              $status = docker inspect --format='{{.State.Status}}' $name
+              Write-Host "$name status is: $status"
+              
+              if ($status -ne "running") {
+                  Write-Error "Critical: $name is not running (Status: $status)"
+                  docker-compose logs $name
+                  exit 1
+              }
+          }
+          Write-Host "Both containers are running. Proceeding to export..."
+
+      - name: Export Images to Tar
+        run: |
+          # Get the image IDs directly from compose to avoid naming confusion
+          $backend_id = docker-compose images -q backend
+          $frontend_id = docker-compose images -q frontend
+
+          Write-Host "Saving Backend ID: $backend_id"
+          docker save $backend_id -o backend-img.tar
+
+          Write-Host "Saving Frontend ID: $frontend_id"
+          docker save $frontend_id -o frontend-img.tar
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gym-images
+          path: |
+            backend-img.tar
+            frontend-img.tar
+          retention-days: 1
+
+      - name: Windows Cleanup
+        if: always()
+        run: |
+          docker-compose down
+          if (Test-Path .env) { Remove-Item .env }
+          if (Test-Path "*.tar") { Remove-Item *.tar }
+
+# JOB 6: Push to Docker Hub (Ubuntu Bash)
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: docker-build-test
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gym-images
+
+      - name: Load Images
+        run: |
+          # Load images and extract the Image IDs from the output
+          BACKEND_ID=$(docker load -i backend-img.tar | grep -oE 'sha256:[0-9a-f]+' | cut -d: -f2 | head -n 1)
+          FRONTEND_ID=$(docker load -i frontend-img.tar | grep -oE 'sha256:[0-9a-f]+' | cut -d: -f2 | head -n 1)
+          
+          # Store them in the environment for the next step
+          echo "BACKEND_ID=$BACKEND_ID" >> $GITHUB_ENV
+          echo "FRONTEND_ID=$FRONTEND_ID" >> $GITHUB_ENV
+          
+          echo "Loaded Backend: $BACKEND_ID"
+          echo "Loaded Frontend: $FRONTEND_ID"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag and Push
+        run: |
+          REPO=${{ secrets.DOCKERHUB_USERNAME }}
+          SHA=${{ github.sha }}
+          
+          # Tag and Push Backend
+          docker tag $BACKEND_ID $REPO/cloudnative-backend:$SHA
+          docker push $REPO/cloudnative-backend:$SHA
+          
+          # Tag and Push Frontend
+          docker tag $FRONTEND_ID $REPO/cloudnative-frontend:$SHA
+          docker push $REPO/cloudnative-frontend:$SHA

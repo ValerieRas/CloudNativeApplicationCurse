@@ -327,3 +327,40 @@ A[Push / PR] --> B{Branch is main <br/> or develop?}
     H -->|Passed| I[Merge PR possible]
     H -->|Failed| J[Block Merge]
 
+# CloudNative Gym Management
+
+## ✔ Lancer l’environnement via Docker Compose
+
+Pour démarrer la stack complète (frontend, backend, base de données) :
+
+```bash
+docker compose up --build
+
+
+✔ URLs accessibles
+
+Frontend : http://localhost:8080
+
+Backend : http://localhost:3000
+
+Postgres : local uniquement, accessible via localhost:5432
+
+✔ Lien vers vos images Docker
+
+Backend : ghcr.io/<username>/cloudnative-backend:latest
+
+Frontend : ghcr.io/<username>/cloudnative-frontend:latest
+
+Remplace <username> par votre nom d’utilisateur GitHub.
+
+✔ Conditions d’exécution du pipeline CI
+
+Nécessite un runner local (Windows, Linux ou macOS selon configuration)
+
+Secrets requis :
+
+DOCKER_USERNAME
+
+DOCKER_PASSWORD
+
+SONAR_TOKEN
