@@ -79,7 +79,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
 
-# JOB 5: Build and Test (Isolé pour ne pas casser la prod)
+# JOB 5: Build and Test 
   docker-build-test:
     runs-on: self-hosted
     needs: sonar
@@ -100,7 +100,6 @@ jobs:
           "@
           $envContent | Out-File -FilePath .env -Encoding ascii
 
-      # On utilise un nom de projet différent (--p test) pour ne pas toucher aux conteneurs de prod
       - name: Build and Start Containers (Test Mode)
         run: docker-compose -p test-build up -d --build
 

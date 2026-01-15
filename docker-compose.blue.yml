@@ -3,7 +3,6 @@
 services:
   app-back-blue:
     image: cloudnative-backend:blue
-    container_name: app-back-blue
     env_file:
       - .env
     networks:
@@ -13,7 +12,6 @@ services:
 
   app-front-blue:
     image: cloudnative-frontend:blue
-    container_name: app-front-blue
     env_file:
       - .env
     networks:
