@@ -1,3 +1,4 @@
+version: "3.8"
 
 services:
   postgres:
@@ -8,20 +9,22 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - bluegreen-net
-    ports:
-      - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 5
 
   reverse-proxy:
-    build: ./nginx
+    image: nginx:alpine
+    container_name: reverse-proxy
     networks:
       - bluegreen-net
     ports:
       - "80:80"
     volumes:
-      - C:/cloudnative/active_color.env:/etc/nginx/active_color.env
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-    restart: unless-stopped
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:

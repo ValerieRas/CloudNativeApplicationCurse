@@ -1,17 +1,20 @@
-
+version: "3.8"
 
 services:
   app-back-green:
     image: cloudnative-backend:green
+    container_name: app-back-green
     env_file:
       - .env
     networks:
       - bluegreen-net
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   app-front-green:
     image: cloudnative-frontend:green
+    container_name: app-front-green
     env_file:
       - .env
     networks:

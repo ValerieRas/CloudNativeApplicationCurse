@@ -184,6 +184,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Création du .env de production (nécessaire pour docker-compose)
       - name: Create Production .env
         run: |
           $envContent = @"
@@ -198,12 +199,16 @@ jobs:
           "@
           $envContent | Out-File -FilePath .env -Encoding ascii
 
+      # Exécution du script de déploiement
       - name: Run Blue-Green Deployment Script
         run: |
-          # Exécution du script PowerShell que nous avons mis à jour
+          # S'assurer que le dossier scripts existe
+          if (-not (Test-Path scripts)) { mkdir scripts }
+          
+          # Note: Assure-toi que le fichier deploy.ps1 est bien commité dans ton repo dans /scripts/
           ./scripts/deploy.ps1 -DockerUser "${{ secrets.DOCKERHUB_USERNAME }}" -GitSha "${{ github.sha }}"
 
-      - name: Verify Nginx Routing
+      - name: Verify Active Color
         run: |
-          Write-Host "Current Routing in Nginx:"
-          docker exec reverse-proxy cat /etc/nginx/conf.d/active.conf
+          $color = Get-Content .active_color
+          Write-Host "Deployment finished. Active color is now: $color"
