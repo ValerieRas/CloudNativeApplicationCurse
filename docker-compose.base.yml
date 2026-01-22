@@ -22,7 +22,11 @@ services:
     ports:
       - "80:80"
     volumes:
+      # 1. On monte le dossier des configs 
       - ./nginx/conf.d:/etc/nginx/conf.d
+      
+      # 2. [IMPORTANT] On monte NOTRE nginx.conf pour écraser celui par défaut
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - postgres
 
