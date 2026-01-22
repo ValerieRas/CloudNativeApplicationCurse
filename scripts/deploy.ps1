@@ -61,13 +61,18 @@ Start-Sleep -Seconds 15
 
 # 6. Reload Nginx (Juste pour être sûr que la config est prise en compte)
 Write-Host "Reloading Nginx..."
-if (docker ps -q -f name=^/reverse-proxy$) {
+# Correction : Filtre simplifié (plus de regex ^/ qui bug sur Windows)
+$ProxyId = docker ps -q -f "name=reverse-proxy"
+
+if ($ProxyId) {
+    Write-Host "Container found ($ProxyId). Reloading config..."
     docker exec reverse-proxy nginx -s reload
     Write-Host "Traffic is now on $TargetColor."
 } else {
-    Write-Warning "Container 'reverse-proxy' not found. It might have crashed or used a different name."
-    Write-Warning "Check 'docker ps -a' and 'docker logs reverse-proxy'."
-    # On n'exit pas ici car si c'est le premier run, le redémarrage a peut-être suffi à charger la conf créée à l'étape 3
+    Write-Warning "Container 'reverse-proxy' not found via filter."
+    Write-Warning "Listing all containers for debug:"
+    docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+    # On ne quitte pas en erreur ici car le conteneur a peut-être redémarré tout seul avec la nouvelle conf
 }
 
 # 7. Mise à jour de l'état
@@ -82,3 +87,4 @@ try {
 }
 
 Write-Host "--- DEPLOYMENT SUCCESS ---"
+exit 0
