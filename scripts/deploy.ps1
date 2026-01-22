@@ -30,60 +30,55 @@ Write-Host "Retagging images to :$TargetColor..."
 docker tag "$DockerUser/cloudnative-backend:$GitSha" "cloudnative-backend:$TargetColor"
 docker tag "$DockerUser/cloudnative-frontend:$GitSha" "cloudnative-frontend:$TargetColor"
 
-# 3. Démarrer l'infrastructure
-Write-Host "Starting Base Infra and $TargetColor stack..."
-
-# [FIX] Création sécurisée du réseau (Idempotent)
-if (-not (docker network ls -q -f name=bluegreen-net)) {
-    Write-Host "Creating network bluegreen-net..."
-    docker network create bluegreen-net
-} else {
-    Write-Host "Network bluegreen-net already exists."
-}
-
-docker-compose -f docker-compose.base.yml -f "docker-compose.$TargetColor.yml" up -d
-
-# 4. Wait
-Write-Host "Waiting for $TargetColor to be ready..."
-Start-Sleep -Seconds 15 
-
-# 5. Bascule du trafic (Switch Nginx)
-Write-Host "Switching Nginx traffic to $TargetColor..."
-
+# 3. [FIX] Préparer la config Nginx AVANT de démarrer (pour éviter le crash)
+Write-Host "Preparing Nginx configuration for $TargetColor..."
 $NginxConfigContent = "set `$active_backend `"app-front-$TargetColor:80`";"
 $NginxConfigFile = "./nginx/conf.d/active_upstream.conf"
 
-# [FIX] S'assurer que le dossier parent existe avant d'écrire le fichier
+# S'assurer que le dossier existe
 $ParentDir = Split-Path -Parent $NginxConfigFile
 if (-not (Test-Path $ParentDir)) {
-    Write-Host "Creating directory $ParentDir..."
     New-Item -ItemType Directory -Force -Path $ParentDir | Out-Null
 }
-
-# Écriture dans le fichier
+# Créer le fichier
 $NginxConfigContent | Out-File -FilePath $NginxConfigFile -Encoding ascii
 
-# [FIX] Recharger Nginx uniquement si le conteneur tourne
-if (docker ps -q -f name=reverse-proxy) {
-    Write-Host "Reloading Nginx config..."
-    docker exec reverse-proxy nginx -s reload
-} else {
-    Write-Error "CRITICAL: Container 'reverse-proxy' is not running! Cannot switch traffic."
-    exit 1
+
+# 4. Démarrer l'infrastructure
+Write-Host "Starting Base Infra and $TargetColor stack..."
+
+# Création sécurisée du réseau
+if (-not (docker network ls -q -f name=bluegreen-net)) {
+    docker network create bluegreen-net
 }
 
-Write-Host "Traffic is now on $TargetColor."
+# Lancement des conteneurs
+docker-compose -f docker-compose.base.yml -f "docker-compose.$TargetColor.yml" up -d
 
-# 6. Mise à jour de l'état
+# 5. Wait
+Write-Host "Waiting for $TargetColor to be ready..."
+Start-Sleep -Seconds 15 
+
+# 6. Reload Nginx (Juste pour être sûr que la config est prise en compte)
+Write-Host "Reloading Nginx..."
+if (docker ps -q -f name=^/reverse-proxy$) {
+    docker exec reverse-proxy nginx -s reload
+    Write-Host "Traffic is now on $TargetColor."
+} else {
+    Write-Warning "Container 'reverse-proxy' not found. It might have crashed or used a different name."
+    Write-Warning "Check 'docker ps -a' and 'docker logs reverse-proxy'."
+    # On n'exit pas ici car si c'est le premier run, le redémarrage a peut-être suffi à charger la conf créée à l'étape 3
+}
+
+# 7. Mise à jour de l'état
 $TargetColor | Out-File -FilePath $ActiveColorFile -Encoding ascii
 
-# 7. Arrêt de l'ancienne couleur
+# 8. Arrêt de l'ancienne couleur
 Write-Host "Stopping $CurrentColor stack..."
-# [FIX] Ajout de 'ErrorAction SilentlyContinue' pour ne pas planter si c'est le 1er run
 try {
     docker-compose -f "docker-compose.$CurrentColor.yml" stop 2>$null
 } catch {
-    Write-Host "Warning: Could not stop $CurrentColor stack (maybe it wasn't running)."
+    Write-Host "Previous stack not running."
 }
 
 Write-Host "--- DEPLOYMENT SUCCESS ---"

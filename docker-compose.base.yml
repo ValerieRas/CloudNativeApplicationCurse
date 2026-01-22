@@ -16,7 +16,7 @@ services:
 
   reverse-proxy:
     image: nginx:alpine
-    #container_name: reverse-proxy
+    container_name: reverse-proxy
     networks:
       - bluegreen-net
     ports:
