@@ -3,7 +3,7 @@ version: "3.8"
 services:
   reverse-proxy:
     build: ./nginx
-    container_name: reverse-proxy
+    #container_name: reverse-proxy
     networks:
       - bluegreen-net
     ports:

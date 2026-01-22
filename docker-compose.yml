@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: gym-postgres
+    #container_name: gym-postgres
     env_file:
       - .env
     ports:
@@ -20,7 +20,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: gym-backend
+    #container_name: gym-backend
     env_file:
       - .env
     depends_on:
@@ -42,7 +42,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: gym-frontend
+    #container_name: gym-frontend
     env_file:
       - .env
     ports:

@@ -4,7 +4,7 @@ services:
   app-back-blue:
     # L'image sera taguée localement par le script avant le lancement
     image: cloudnative-backend:blue
-    container_name: app-back-blue
+    #container_name: app-back-blue
     env_file:
       - .env
     networks:
@@ -15,7 +15,7 @@ services:
 
   app-front-blue:
     image: cloudnative-frontend:blue
-    container_name: app-front-blue
+    #container_name: app-front-blue
     env_file:
       - .env
     networks:

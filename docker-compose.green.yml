@@ -3,7 +3,7 @@ version: "3.8"
 services:
   app-back-green:
     image: cloudnative-backend:green
-    container_name: app-back-green
+    #container_name: app-back-green
     env_file:
       - .env
     networks:
@@ -14,7 +14,7 @@ services:
 
   app-front-green:
     image: cloudnative-frontend:green
-    container_name: app-front-green
+    #container_name: app-front-green
     env_file:
       - .env
     networks:
