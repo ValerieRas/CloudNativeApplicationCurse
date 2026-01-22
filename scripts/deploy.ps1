@@ -30,9 +30,15 @@ Write-Host "Retagging images to :$TargetColor..."
 docker tag "$DockerUser/cloudnative-backend:$GitSha" "cloudnative-backend:$TargetColor"
 docker tag "$DockerUser/cloudnative-frontend:$GitSha" "cloudnative-frontend:$TargetColor"
 
+
+if ([string]::IsNullOrWhiteSpace($TargetColor)) {
+    Write-Error "CRITICAL: TargetColor is empty! Logic failed."
+    exit 1
+}
+
 # 3. [FIX] Préparer la config Nginx AVANT de démarrer (pour éviter le crash)
-Write-Host "Preparing Nginx configuration for $TargetColor..."
-$NginxConfigContent = "set `$active_backend `"app-front-$TargetColor:80`";"
+Write-Host "Configuring Nginx for target: $TargetColor"
+$NginxConfigContent = "set `$active_backend `"app-front-${TargetColor}:80`";"
 $NginxConfigFile = "./nginx/conf.d/active_upstream.conf"
 
 # S'assurer que le dossier existe
