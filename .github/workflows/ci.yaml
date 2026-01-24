@@ -181,10 +181,11 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: docker-push
+    if: github.ref == 'refs/heads/main' # Sécurité : Seulement sur main
     steps:
       - uses: actions/checkout@v4
 
-      # Création du .env de production (nécessaire pour docker-compose)
+      # Création du .env de production
       - name: Create Production .env
         run: |
           $envContent = @"
@@ -199,16 +200,17 @@ jobs:
           "@
           $envContent | Out-File -FilePath .env -Encoding ascii
 
-      # Exécution du script de déploiement
+      # Lancement du script intelligent
       - name: Run Blue-Green Deployment Script
         run: |
-          # S'assurer que le dossier scripts existe
+          # Création dossier scripts si absent (cas rare)
           if (-not (Test-Path scripts)) { mkdir scripts }
           
-          # Note: Assure-toi que le fichier deploy.ps1 est bien commité dans ton repo dans /scripts/
+          # Exécution du script
           ./scripts/deploy.ps1 -DockerUser "${{ secrets.DOCKERHUB_USERNAME }}" -GitSha "${{ github.sha }}"
 
-      - name: Verify Active Color
+      # Vérification post-déploiement (Optionnel, pour les logs)
+      - name: Verify Deployment
         run: |
-          $color = Get-Content .active_color
-          Write-Host "Deployment finished. Active color is now: $color"
+          docker ps --format "table {{.Names}}\t{{.Status}}"
+          docker exec reverse-proxy cat /etc/nginx/conf.d/active_upstream.conf
