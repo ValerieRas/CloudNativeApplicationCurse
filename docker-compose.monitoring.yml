@@ -38,7 +38,7 @@ services:
 
   loki:
     image: grafana/loki:latest
-    container_name: loki
+    container_name: monitoring-loki
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -48,9 +48,9 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
-      - monitoring
+      - gym-network
 
   promtail:
     image: grafana/promtail:latest
