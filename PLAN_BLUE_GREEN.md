@@ -1,22 +1,14 @@
 # PLAN_BLUE_GREEN.md
 
-## 🎯 Objective
+## 1. Recherches & Compréhension
 
-Design and implement a **blue/green deployment strategy** for a containerized application  
-(Vue.js frontend, NestJS backend, PostgreSQL) with **zero downtime**, **instant rollback**, and **CI-driven traffic switching** using an **Nginx reverse proxy**.
+### Comment organiser plusieurs services Docker pour le même rôle ?
+Pour permettre à deux versions (Blue et Green) de cohabiter sur le même serveur sans conflit de ports ou de noms, nous utilisons une convention de nommage par suffixe dans nos fichiers Docker Compose :
+* **Version Blue :** Les services sont nommés `app-back-blue` et `app-front-blue`.
+* **Version Green :** Les services sont nommés `app-back-green` et `app-front-green`.
 
----
+Tous ces conteneurs rejoignent un réseau externe commun nommé `bluegreen-net`. Cela permet au Reverse Proxy (situé sur le même réseau) de communiquer avec n'importe quelle couleur via son nom de conteneur, indépendamment de la version active.
 
-## 🧠 Core Principles
-
-- Two application versions run **in parallel**: `blue` and `green`
-- Only **one version receives user traffic** at any time
-- A **single PostgreSQL database** is shared
-- A **reverse proxy (Nginx)** controls traffic routing
-- Deployments never stop the active production version
-- Rollback must be **near-instantaneous**
-
----
 
 ## 🧱 Global Architecture
 
@@ -46,230 +38,103 @@ Design and implement a **blue/green deployment strategy** for a containerized ap
 
 ---
 
-## 🔄 Step 2 – Reverse Proxy Design (Nginx)
 
-### 🎯 Goal
 
-Introduce a **single entry point** that can switch traffic between
-`blue` and `green` **without stopping containers or users noticing**.
+### Comment éviter qu’un `docker compose up` modifie tous les services ?
+Docker Compose est conçu pour être "idempotent" : il ne redémarre un conteneur que si sa configuration ou son image a changé.
+Pour garantir une isolation parfaite lors des déploiements :
+1.  Nous avons **séparé les définitions** dans des fichiers distincts (`.blue.yml`, `.green.yml`).
+2.  Lors d'un déploiement (ex: vers Green), nous incluons les définitions de Green et de l'infrastructure de base.
+3.  Docker détecte que l'infrastructure n'a pas changé et ne la redémarre pas. Il ne touche pas non plus aux conteneurs Blue s'ils sont inclus dans la commande mais n'ont pas de changements d'image.
 
----
-
-### 🐳 Reverse Proxy Service
-
-- A dedicated `reverse-proxy` container (Nginx)
-- Exposes port **80**
-- Routes traffic to:
-  - `app-back-blue`
-  - or `app-back-green`
-- Frontend routing can be added later (same logic)
+### Comment séparer clairement le routage des versions applicatives ?
+Nous séparons les responsabilités dans des fichiers distincts :
+* **Infrastructure (Routage & Données) :** Le fichier `docker-compose.base.yml` gère le Reverse Proxy (Nginx) et la Base de données. Ces services sont stables et redémarrent rarement.
+* **Applicatif (Versions) :** Les fichiers `docker-compose.blue.yml` et `docker-compose.green.yml` ne contiennent que le code métier (Frontend + Backend). C'est uniquement cette partie qui change à chaque déploiement.
 
 ---
 
-### ⚙️ Chosen Strategy: Dynamic Nginx Include (Option 1)
+## 2. Solution Technique
 
-This project uses:
+### Fichiers de Composition Docker
+Nous utilisons **3 fichiers principaux** pour cette architecture :
 
-> **Two upstreams + a dynamically mounted include file**
+1.  **`docker-compose.base.yml`**
+    * **Contenu :** Reverse Proxy (Nginx), PostgreSQL.
+    * **Rôle :** Infrastructure persistante.
+2.  **`docker-compose.blue.yml`**
+    * **Contenu :** `app-back-blue`, `app-front-blue`.
+    * **Rôle :** Stack applicative "Blue".
+3.  **`docker-compose.green.yml`**
+    * **Contenu :** `app-back-green`, `app-front-green`.
+    * **Rôle :** Stack applicative "Green".
 
-#### Why this choice?
+*(Note : `docker-compose.proxy.yml` n'est pas utilisé car le proxy est intégré à la `base` pour simplifier la gestion réseau).*
 
-- Clear and explicit routing
-- No Docker networking hacks
-- Works well with CI-controlled config files
-- Nginx reload is lightweight and safe
+### Lancement de l'ensemble
+Pour éviter que Docker ne considère les conteneurs de la couleur inactive comme "orphelins" (ce qui provoquerait leur arrêt), nous combinons tous les fichiers lors de la commande de démarrage. Cela garantit que **Blue et Green restent actifs simultanément**.
 
----
-
-### 📄 Nginx Configuration Structure
-
-**Main config (`nginx.conf`)**
-```nginx
-http {
-  include /etc/nginx/conf.d/upstreams.conf;
-  include /etc/nginx/conf.d/active.conf;
-
-  server {
-    listen 80;
-
-    location / {
-      proxy_pass http://active_backend;
-    }
-  }
-}
-```
-
-**Upstreams (`upstreams.conf`)**
-```nginx
-upstream backend_blue {
-  server app-back-blue:3000;
-}
-
-upstream backend_green {
-  server app-back-green:3000;
-}
-```
-
-**Active target (`active.conf`)**
-```nginx
-# Either:
-set $active_backend backend_blue;
-# or:
-# set $active_backend backend_green;
-```
-
-➡️ Switching traffic = replacing `active.conf` + `nginx -s reload`
-
-✔ No container restart  
-✔ No downtime  
-
----
-
-## 🧱 Step 3 – Docker Compose Structure
-
-### 📁 File Separation
-
-#### `docker-compose.base.yml`
-Shared infrastructure:
-- PostgreSQL (single instance)
-- Reverse proxy (Nginx)
-- Shared network and volumes
-
-#### `docker-compose.blue.yml`
-- `app-back-blue`
-- `app-front-blue`
-- Blue-tagged images
-- Unique container names
-
-#### `docker-compose.green.yml`
-- `app-back-green`
-- `app-front-green`
-- Green-tagged images
-- Same ports, same env, different names
-
----
-
-### ▶️ Deployment Commands
-
-Deploy **blue**:
+**Commande concrète :**
 ```bash
-docker compose -f docker-compose.base.yml \
-               -f docker-compose.blue.yml up -d
+docker-compose -f docker-compose.base.yml -f docker-compose.green.yml -f docker-compose.blue.yml up -d
 ```
 
-Deploy **green** (without touching blue):
-```bash
-docker compose -f docker-compose.base.yml \
-               -f docker-compose.green.yml up -d
-```
+## 1. Mécanisme de bascule Nginx (Côté Proxy)
 
-✔ One color can be deployed independently  
-✔ Proxy remains untouched  
+Nous n'utilisons pas de variables d'environnement (qui nécessitent un redémarrage lourd du conteneur), mais un système d'**inclusion dynamique de fichier**.
+
+### Le Principe
+1.  **Configuration :** Nginx inclut un fichier spécifique via la directive `include /etc/nginx/conf.d/active_upstream.conf;` définie dans le bloc `server`.
+2.  **Contenu :** Ce fichier définit une variable, par exemple : `set $active_backend "app-front-green:80";`.
+3.  **Action :** Le script de déploiement écrase ce fichier texte avec la nouvelle cible, puis recharge la configuration à chaud sans couper les connexions actives :
+    ```bash
+    docker exec reverse-proxy nginx -s reload
+    ```
 
 ---
 
-## 🧪 Step 4 – CI-Driven Traffic Switching
+## 2. Scénario de Déploiement
 
-### 1️⃣ Detect Active Color
+### État Initial
+* **Prod :** La couleur **Blue** est active.
+* **Proxy :** Redirige le trafic vers `app-front-blue`.
+* **État :** Le fichier `.active_color` contient "blue".
 
-- The active color is stored in:
-  ```text
-  reverse-proxy/conf/active_color.env
-  ```
-  Example:
-  ```text
-  ACTIVE_COLOR=blue
-  ```
+### Nouveau Déploiement (Happy Path)
+1.  **Ciblage :** Le pipeline lit `.active_color` (blue), il décide donc de déployer sur **Green**.
+2.  **Mise à jour :** Le pipeline télécharge les nouvelles images pour Green.
+3.  **Démarrage :** Lancement des conteneurs Green. **Blue reste allumé** et continue de servir les clients.
+4.  **Validation (Healthcheck) :** Le script teste la connectivité interne vers `app-front-green`.
+5.  **Bascule :**
+    * Si le test est OK : Le fichier de config Nginx est mis à jour vers Green + Reload Nginx.
+    * Le fichier `.active_color` est mis à jour avec "green".
 
-The CI reads this file to know:
-- current production color
-- next deployment target
-
----
-
-### 2️⃣ Deploy Inactive Color
-
-If `ACTIVE_COLOR=blue`:
-- CI deploys **green**
-
-```bash
-docker compose -f docker-compose.base.yml \
-               -f docker-compose.green.yml up -d
-```
-
-Health checks are executed before switching traffic.
+### Retour en arrière (Rollback)
+Si la nouvelle version (Green) est défaillante (bug métier) après la bascule :
+* Comme l'ancienne version (Blue) n'a pas été arrêtée, elle est toujours prête (Hot Standby).
+* **Action :** On remet la configuration Nginx sur `app-front-blue` et on reload.
+* **Temps de rétablissement :** Quasi instantané (< 1 seconde).
 
 ---
 
-### 3️⃣ Switch Reverse Proxy
+## 3. Documentation de la Logique de Bascule
 
-CI updates:
-```text
-active.conf
-```
+### Où est stockée la couleur active ?
+L'état est persisté dans un fichier texte local nommé `.active_color` situé à la racine du projet sur le serveur de déploiement (Runner).
+* Contenu possible : `blue` ou `green`.
 
-From:
-```nginx
-set $active_backend backend_blue;
-```
+### Comment le pipeline détermine la prochaine cible ?
+Le script PowerShell (`deploy.ps1`) lit ce fichier :
+* Si `.active_color` == `blue` ➔ Cible = `green`.
+* Si `.active_color` == `green` ➔ Cible = `blue`.
+* Si fichier absent ➔ Cible par défaut = `green` (en considérant Blue comme état initial implicite).
 
-To:
-```nginx
-set $active_backend backend_green;
-```
+### Quel est le mécanisme de rollback ?
+Le système offre deux niveaux de protection :
 
-Then reloads Nginx:
-```bash
-docker exec reverse-proxy nginx -s reload
-```
+1.  **Rollback Préventif (Automatique) :**
+    Si la nouvelle stack (Green) ne passe pas le healthcheck (ne répond pas sous 60 secondes après démarrage), le script l'éteint immédiatement et ne modifie jamais le routage Nginx. Les utilisateurs restent sur Blue sans interruption.
 
-✔ Instant traffic switch  
-✔ No container restart  
+2.  **Rollback Curatif (Manuel) :**
+    Puisque l'ancienne stack reste allumée ("Hot Standby"), il est possible de revenir en arrière instantanément. Un script de rollback (ou un job manuel) modifie le fichier `active_upstream.conf` pour pointer vers l'ancienne couleur et recharge Nginx.
 
----
-
-### 4️⃣ Rollback Strategy (Mandatory)
-
-Rollback is **symmetrical** and immediate:
-
-```bash
-# Restore previous active.conf
-docker exec reverse-proxy nginx -s reload
-```
-
-- No rebuild
-- No redeploy
-- No downtime
-
----
-
-### 5️⃣ Optional Cleanup
-
-Once the new version is validated:
-- CI *may* stop the old color:
-  ```bash
-  docker compose stop app-back-blue app-front-blue
-  ```
-This step is optional and not required for rollback capability.
-
----
-
-## ✅ Why This Strategy Meets the Requirements
-
-- New version is deployed **without stopping the old one**
-- Traffic switch is **atomic and reversible**
-- Reverse proxy is the single source of truth
-- CI controls deployment and routing
-- Architecture mirrors **real production blue/green setups**
-
----
-
-## 🏁 Conclusion
-
-This blue/green deployment design:
-- avoids risky in-place upgrades
-- provides near-zero downtime
-- enables instant rollback
-- remains simple, auditable, and CI-friendly
-
-It is intentionally designed to be **production-realistic**, not a toy example.
