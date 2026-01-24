@@ -65,6 +65,9 @@ app.use((err, req, res, next) => {
 
 // ------------------- 404 Handler -------------------
 app.use('*', (req, res) => {
+
+  console.error(`[Error 404] Route not found: ${req.originalUrl}`);
+  
   res.status(404).json({ error: 'Route not found' });
 });
 
