@@ -181,7 +181,6 @@ jobs:
   deploy:
     runs-on: self-hosted
     needs: docker-push
-    if: github.ref == 'refs/heads/main' # Sécurité : Seulement sur main
     steps:
       - uses: actions/checkout@v4
 
