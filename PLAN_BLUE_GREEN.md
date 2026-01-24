@@ -120,8 +120,8 @@ Si la nouvelle version (Green) est défaillante (bug métier) après la bascule 
 ## 3. Documentation de la Logique de Bascule
 
 ### Où est stockée la couleur active ?
-L'état est persisté dans un fichier texte local nommé `.active_color` situé à la racine du projet sur le serveur de déploiement (Runner).
-* Contenu possible : `blue` ou `green`.
+La couleur active est stockée dans le fichier de configuration d'aiguillage Nginx.
+Il contient une simple variable Nginx qui pointe vers le conteneur actif.
 
 ### Comment le pipeline détermine la prochaine cible ?
 Le script PowerShell (`deploy.ps1`) lit ce fichier :
