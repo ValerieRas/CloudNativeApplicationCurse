@@ -1,3 +1,4 @@
+version: "3.9"
 
 services:
   prometheus:
@@ -17,6 +18,24 @@ services:
     networks:
       - monitoring
 
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: monitoring-loki
+    user: "0:0"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    expose:
+      - "3100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks:
+      - monitoring
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -26,7 +45,7 @@ services:
       prometheus:
         condition: service_healthy
       loki:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 10s
@@ -34,22 +53,6 @@ services:
       retries: 5
     networks:
       - monitoring
-
-  loki:
-    image: grafana/loki:latest
-    container_name: monitoring-loki
-    command: -config.file=/etc/loki/loki-config.yaml
-    volumes:
-      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
-    expose:
-      - "3100"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks:
-      - gym-network
 
   promtail:
     image: grafana/promtail:latest
@@ -62,9 +65,17 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9080/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - monitoring
 
 networks:
   monitoring:
     driver: bridge
+
+volumes:
+  loki-data:
