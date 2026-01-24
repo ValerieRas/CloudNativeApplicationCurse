@@ -3,8 +3,8 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "nestjs-backend"
+  - job_name: 'gym-backend'
     metrics_path: /metrics
     static_configs:
       - targets:
-          - gym-backend:3000
+          - gym-backend:3000  # container name of your backend
