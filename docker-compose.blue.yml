@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  app-back-blue:
+    # L'image sera taguée localement par le script avant le lancement
+    image: cloudnative-backend:blue
+    #container_name: app-back-blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app-front-blue:
+    image: cloudnative-frontend:blue
+    #container_name: app-front-blue
+    env_file:
+      - .env
+    networks:
+      - bluegreen-net
+    depends_on:
+      - app-back-blue

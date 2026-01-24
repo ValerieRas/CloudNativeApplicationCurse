@@ -79,7 +79,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: npx sonarqube-scanner
 
-# JOB 5: Build and Test on Self-Hosted (Windows PowerShell)
+# JOB 5: Build and Test 
   docker-build-test:
     runs-on: self-hosted
     needs: sonar
@@ -88,62 +88,52 @@ jobs:
 
       - name: Create .env file
         run: |
-          Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
-          "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
-          "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
-          "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
-          "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" | Add-Content -Path .env
-          "DATABASE_URL=${{ secrets.DATABASE_URL }}" | Add-Content -Path .env
-          "NODE_ENV=production" | Add-Content -Path .env
-          "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
+          $envContent = @"
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+          BACKEND_PORT=${{ secrets.BACKEND_PORT }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          NODE_ENV=production
+          FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}
+          "@
+          $envContent | Out-File -FilePath .env -Encoding ascii
 
-      - name: Build and Start Containers
-        run: docker-compose up -d --build
+      - name: Build and Start Containers (Test Mode)
+        run: docker-compose -p test-build up -d --build
 
       - name: Verify Healthchecks
         run: |
-          $containers = @("gym-backend", "gym-frontend")
-          Start-Sleep -Seconds 10 # Give them a moment to try and start
-          
+          Start-Sleep -Seconds 15
+          $containers = docker ps --filter "name=test-build" --format "{{.Names}}"
           foreach ($name in $containers) {
               $status = docker inspect --format='{{.State.Status}}' $name
-              Write-Host "$name status is: $status"
-              
-              if ($status -ne "running") {
-                  Write-Error "Critical: $name is not running (Status: $status)"
-                  docker-compose logs $name
-                  exit 1
+              if ($status -ne "running") { 
+                  Write-Error "$name is $status"; exit 1 
               }
           }
-          Write-Host "Both containers are running. Proceeding to export..."
 
       - name: Export Images to Tar
         run: |
-          # Get the image IDs directly from compose to avoid naming confusion
-          $backend_id = docker-compose images -q backend
-          $frontend_id = docker-compose images -q frontend
-
-          Write-Host "Saving Backend ID: $backend_id"
-          docker save $backend_id -o backend-img.tar
-
-          Write-Host "Saving Frontend ID: $frontend_id"
-          docker save $frontend_id -o frontend-img.tar
+          # On récupère les images buildées par le projet de test
+          $back_img = docker images --filter "reference=*backend*" --format "{{.ID}}" | Select-Object -First 1
+          $front_img = docker images --filter "reference=*frontend*" --format "{{.ID}}" | Select-Object -First 1
+          docker save $back_img -o backend-img.tar
+          docker save $front_img -o frontend-img.tar
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gym-images
-          path: |
-            backend-img.tar
-            frontend-img.tar
+          path: "*.tar"
           retention-days: 1
 
       - name: Windows Cleanup
         if: always()
         run: |
-          docker-compose down
+          docker-compose -p test-build down
           if (Test-Path .env) { Remove-Item .env }
-          if (Test-Path "*.tar") { Remove-Item *.tar }
 
 # JOB 6: Push to Docker Hub (Ubuntu Bash)
   docker-push:
@@ -187,28 +177,39 @@ jobs:
           docker tag $FRONTEND_ID $REPO/cloudnative-frontend:$SHA
           docker push $REPO/cloudnative-frontend:$SHA
 
-# JOB 7 : DEPLOY
+# JOB 7 : DEPLOY (Blue-Green)
   deploy:
     runs-on: self-hosted
     needs: docker-push
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create .env file
+      # Création du .env de production
+      - name: Create Production .env
         run: |
-          Write-Output "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" | Out-File -FilePath .env -Encoding ascii
-          "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" | Add-Content -Path .env
-          "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" | Add-Content -Path .env
-          "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" | Add-Content -Path .env
-          "BACKEND_PORT=${{ secrets.BACKEND_PORT }}" | Add-Content -Path .env
-          "DATABASE_URL=${{ secrets.DATABASE_URL }}" | Add-Content -Path .env
-          "NODE_ENV=production" | Add-Content -Path .env
-          "FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}" | Add-Content -Path .env
+          $envContent = @"
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
+          BACKEND_PORT=${{ secrets.BACKEND_PORT }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          NODE_ENV=production
+          FRONTEND_PORT=${{ secrets.FRONTEND_PORT }}
+          "@
+          $envContent | Out-File -FilePath .env -Encoding ascii
 
-      - name: Run Deployment Script
+      # Lancement du script intelligent
+      - name: Run Blue-Green Deployment Script
         run: |
-          # We call the script and pass the necessary arguments
+          # Création dossier scripts si absent (cas rare)
+          if (-not (Test-Path scripts)) { mkdir scripts }
+          
+          # Exécution du script
           ./scripts/deploy.ps1 -DockerUser "${{ secrets.DOCKERHUB_USERNAME }}" -GitSha "${{ github.sha }}"
 
-      - name: Verify Final Status
-        run: docker ps
+      # Vérification post-déploiement (Optionnel, pour les logs)
+      - name: Verify Deployment
+        run: |
+          docker ps --format "table {{.Names}}\t{{.Status}}"
+          docker exec reverse-proxy cat /etc/nginx/conf.d/active_upstream.conf
