@@ -4,7 +4,7 @@
       <div class="container">
         <nav class="nav">
           <div>
-            <h1>🏋️ Gestion Salle de Sport - Blue version 🐟 🐟 🐟 🐟</h1>
+            <h1>🏋️ Gestion Salle de Sport - Blue version 🐟 🐟 🐟 </h1>
           </div>
           
           <div v-if="currentUser">
